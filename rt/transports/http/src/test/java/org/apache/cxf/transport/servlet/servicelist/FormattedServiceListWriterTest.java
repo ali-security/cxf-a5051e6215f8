@@ -25,6 +25,7 @@ import java.util.Collections;
 import javax.xml.namespace.QName;
 
 import org.apache.cxf.Bus;
+import org.apache.cxf.BusFactory;
 import org.apache.cxf.service.model.EndpointInfo;
 import org.apache.cxf.service.model.InterfaceInfo;
 import org.apache.cxf.service.model.ServiceInfo;
@@ -115,6 +116,58 @@ public class FormattedServiceListWriterTest extends Assert {
         assertTrue(result, result.contains("<span class=\"value\">" + basePath + "/greeter</span>"));
         assertTrue(result, result.contains("<a href=\"" + basePath + "/greeter?wsdl\">"));
         assertTrue(result, result.contains("<span class=\"value\">" + basePath + "/books</span>"));
+    }
+
+    @Test
+    public void testWriteServiceList() throws Exception {
+        Bus bus = BusFactory.getDefaultBus(true);
+        String styleSheetPath = "/app/services/?stylesheet=1";
+        FormattedServiceListWriter writer =
+                new FormattedServiceListWriter(styleSheetPath,
+                        "CXF services", false, bus);
+
+        StringWriter sw = new StringWriter();
+        writer.writeServiceList(new PrintWriter(sw), "/path", new AbstractDestination[0],
+                                new AbstractDestination[0]);
+
+        assertTrue(sw.toString().contains("href=\"" + styleSheetPath + "\""));
+        bus.shutdown(false);
+    }
+
+    @Test
+    public void testStripMultipleForwardSlashes() throws Exception {
+        Bus bus = BusFactory.getDefaultBus(true);
+        String styleSheetPath = "////app/services/?stylesheet=1";
+        FormattedServiceListWriter writer =
+                new FormattedServiceListWriter(styleSheetPath,
+                        "CXF services", false, bus);
+
+        StringWriter sw = new StringWriter();
+        writer.writeServiceList(new PrintWriter(sw), "/path", new AbstractDestination[0],
+                                new AbstractDestination[0]);
+
+        String desiredStyleSheetPath = "/app/services/?stylesheet=1";
+        assertTrue(sw.toString().contains("href=\"" + desiredStyleSheetPath + "\""));
+        bus.shutdown(false);
+    }
+
+    @Test
+    public void testEscapeHTMLStyleSheetPath() throws Exception {
+        String styleSheetPath = "/services/?stylesheet=1\"><script>alert(1)</script>";
+        FormattedServiceListWriter writer =
+            new FormattedServiceListWriter(styleSheetPath, "CXF services", false, null);
+
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        writer.writeServiceList(pw, "/path", NONE, NONE);
+        pw.flush();
+        String result = sw.toString();
+
+        assertFalse(result, result.contains("<script>"));
+        assertFalse(result, result.contains("</script>"));
+        assertTrue(result, result.contains("&quot;&gt;&lt;script&gt;"));
+        assertTrue(result, result.contains("href=\"/services/?stylesheet=1&quot;&gt;&lt;script&gt;alert(1)"
+                                           + "&lt;/script&gt;\""));
     }
 
     private static void assertNoInjectedMarkup(String result) {
